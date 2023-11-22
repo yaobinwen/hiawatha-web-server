@@ -1,0 +1,5 @@
+# build output directory
+build
+
+# .deb files
+hiawatha*.deb
