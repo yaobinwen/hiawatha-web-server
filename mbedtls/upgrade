@@ -1,0 +1,61 @@
+#!/bin/sh
+
+mbedtls_enable() {
+	if [ "$1" = "" ]; then
+		return
+	fi
+	perl -pi -e "s/^\/\/#define ${1}$/#define ${1}/" include/mbedtls/mbedtls_config.h
+}
+
+mbedtls_disable() {
+	if [ "$1" = "" ]; then
+		return
+	fi
+	perl -pi -e "s/^#define ${1}$/\/\/#define ${1}/" include/mbedtls/mbedtls_config.h
+}
+
+cd `dirname $0`
+
+if [ ! `which curl` ]; then
+	echo "Curl not found."
+	exit
+fi
+
+echo "Downloading mbed TLS latest version."
+version=`curl -s https://raw.githubusercontent.com/ARMmbed/mbedtls/development/ChangeLog | grep "^=" | head -1 | cut -f4 -d' '`
+curl -sO https://codeload.github.com/ARMmbed/mbedtls/zip/refs/tags/v${version}
+unzip -q v${version}
+rm -f v${version}
+
+echo "Removing current mbed TLS library."
+rm -rf cmake
+rm -rf include
+rm -rf library
+
+echo "Installing new mbed TLS library."
+mv mbedtls-${version}/ChangeLog .
+mv mbedtls-${version}/cmake .
+mv mbedtls-${version}/include .
+mv mbedtls-${version}/library .
+
+echo "Enabling threading support."
+mbedtls_enable MBEDTLS_THREADING_PTHREAD
+mbedtls_enable MBEDTLS_THREADING_C
+#mbedtls_enable MBEDTLS_SSL_PROTO_TLS1_3
+#mbedtls_enable MBEDTLS_SSL_TLS1_3_COMPATIBILITY_MODE
+
+echo "Disabling secp192r1 and secp192k1."
+mbedtls_disable MBEDTLS_ECP_DP_SECP192R1_ENABLED
+mbedtls_disable MBEDTLS_ECP_DP_SECP192K1_ENABLED
+
+if [ -f ${version}.patch ]; then
+	echo "Applying patch."
+	patch -p1 < ${version}.patch
+fi
+
+echo "Cleaning up."
+rm -f include/.gitignore
+rm -f library/.gitignore
+rm -rf mbedtls-${version}
+
+echo "mbed TLS upgraded to version ${version}."
